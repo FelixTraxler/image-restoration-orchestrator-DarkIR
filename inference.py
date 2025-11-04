@@ -10,12 +10,14 @@ parser = argparse.ArgumentParser(description="Script for prediction")
 parser.add_argument('-p', '--config', type=str, default='./options/inference/LOLBlur.yml', help = 'Config file of prediction')
 parser.add_argument('-i', '--inp_path', type=str, default='./images/inputs', 
                 help="Folder path")
+parser.add_argument('-o', '--out_path', type=str, default='./images/results', 
+                help="Folder path")
 args = parser.parse_args()
 
 
 path_options = args.config
 opt = parse(path_options)
-os.environ["CUDA_VISIBLE_DEVICES"]= "1"
+os.environ["CUDA_VISIBLE_DEVICES"]= "0"
 
 # PyTorch library
 import torch
@@ -94,7 +96,7 @@ def predict_folder(rank, world_size):
     model = load_model(model, path_weights = opt['save']['path'])
     # create data
     PATH_IMAGES= args.inp_path
-    PATH_RESULTS = './images/results'
+    PATH_RESULTS = args.out_path
 
     #create folder if it doen't exist
     not os.path.isdir(PATH_RESULTS) and os.mkdir(PATH_RESULTS)
@@ -127,7 +129,11 @@ def predict_folder(rank, world_size):
         output = upsample(output)
         output = torch.clamp(output, 0., 1.)
         output = output[:,:, :H, :W]
-        save_tensor(output, os.path.join(PATH_RESULTS, os.path.basename(path_img)))
+
+        name, ext = os.path.splitext(os.path.basename(path_img))
+        new_filename = f"{name}_DarkIR{ext}"
+
+        save_tensor(output, os.path.join(PATH_RESULTS, new_filename))
 
 
         pbar.update(1)
@@ -141,7 +147,8 @@ def predict_folder(rank, world_size):
 def main():
     world_size = 1
     print('Used GPUS:', world_size)
-    mp.spawn(predict_folder, args =(world_size,), nprocs=world_size, join=True)
+    # mp.spawn(predict_folder, args =(world_size,), nprocs=world_size, join=True)
+    predict_folder(rank=0, world_size=1)
 
 if __name__ == '__main__':
     main()
